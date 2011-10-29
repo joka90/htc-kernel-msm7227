@@ -41,7 +41,7 @@
 #include "kgsl_postmortem.h"
 
 #include "kgsl_log.h"
-#include "kgsl_drm.h"
+#include <drm/kgsl_drm.h>
 #include "kgsl_cffdump.h"
 
 
@@ -1711,7 +1711,6 @@ static struct dev_pm_ops kgsl_dev_pm_ops = {
 };
 
 static const struct file_operations kgsl_fops = {
->>>>>>> 78c9aa1... Merge updates via HTC's chacha-2.6.35-crc
 	.owner = THIS_MODULE,
 	.release = kgsl_release,
 	.open = kgsl_open,
