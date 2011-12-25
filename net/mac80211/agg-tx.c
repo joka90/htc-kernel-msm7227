@@ -128,8 +128,8 @@ void ieee80211_send_bar(struct ieee80211_sub_if_data *sdata, u8 *ra, u16 tid, u1
 int ___ieee80211_stop_tx_ba_session(struct sta_info *sta, u16 tid,
 				    enum ieee80211_back_parties initiator)
 {
-	struct ieee80211_local *local = sta->local;
 	struct tid_ampdu_tx *tid_tx = sta->ampdu_mlme.tid_tx[tid];
+	struct ieee80211_local *local = sta->local;
 	int ret;
 	u8 *state;
 
