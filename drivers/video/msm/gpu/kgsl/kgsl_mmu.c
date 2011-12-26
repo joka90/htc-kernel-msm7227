@@ -815,4 +815,3 @@ int kgsl_mmu_close(struct kgsl_device *device)
 
 	return 0;
 }
-

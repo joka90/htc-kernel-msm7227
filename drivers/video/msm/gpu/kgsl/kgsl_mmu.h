@@ -206,4 +206,3 @@ int kgsl_mmu_querystats(struct kgsl_pagetable *pagetable,
 void kgsl_mh_intrcallback(struct kgsl_device *device);
 
 #endif /* __GSL_MMU_H */
-

@@ -1137,7 +1137,7 @@ static void build_regrestore_cmds(struct kgsl_device *device,
 	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE2, 1);
 	ctx->reg_values[2] = gpuaddr(cmd, &drawctxt->gpustate);
 	if (device->chip_id != KGSL_CHIPID_LEIA_REV470)
-		*cmd++ = 0x00000000;
+		*cmd++ = 0x00000FFF;
 	else
 		*cmd++ = 0x80;
 
