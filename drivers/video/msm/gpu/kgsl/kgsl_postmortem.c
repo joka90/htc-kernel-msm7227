@@ -30,7 +30,6 @@
 #include "kgsl_yamato.h"
 
 #define INVALID_RB_CMD 0xaaaaaaaa
-#define NUM_DWORDS_OF_RINGBUFFER_HISTORY 100
 
 struct pm_id_name {
 	uint32_t id;
@@ -359,7 +358,7 @@ static void kgsl_dump_fields(const char *start, const struct log_field *lines,
 	int num)
 {
 	int count, i;
-	char lb[150];
+	char lb[90];
 
 	strncpy(lb, start, sizeof(lb));
 	count = 0;
@@ -399,18 +398,7 @@ static int kgsl_dump_yamato(struct kgsl_device *device)
 
 	struct kgsl_yamato_device *yamato_device = KGSL_YAMATO_DEVICE(device);
 
-	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
-
 	mb();
-
-	KGSL_LOG_DUMP("POWER: FLAGS = %08X ", pwr->power_flags);
-
-	KGSL_LOG_DUMP("POWER: INTERVAL TIMEOUT = %08X ",
-		pwr->interval_timeout);
-
-	KGSL_LOG_DUMP("GRP_CLK = %lu ", kgsl_get_clkrate(pwr->grp_clk));
-
-	KGSL_LOG_DUMP("BUS CLK = %lu ", kgsl_get_clkrate(pwr->ebi1_clk));
 
 	kgsl_regread(device, REG_RBBM_STATUS, &rbbm_status);
 	kgsl_regread(device, REG_RBBM_PM_OVERRIDE1, &r2);
@@ -458,14 +446,7 @@ static int kgsl_dump_yamato(struct kgsl_device *device)
 	rb_count = 2 << (r2 & (BIT(6)-1));
 	kgsl_regread(device, REG_CP_RB_RPTR_ADDR, &r3);
 	KGSL_LOG_DUMP("CP_RB:  BASE = %08X | CNTL   = %08X | RPTR_ADDR = %08X"
-		" | rb_count = %08X\n", cp_rb_base, r2, r3, rb_count);
-	{
-		struct kgsl_yamato_device *yamato_device =
-			KGSL_YAMATO_DEVICE(device);
-		struct kgsl_ringbuffer *rb = &yamato_device->ringbuffer;
-		if (rb->sizedwords != rb_count)
-			rb_count = rb->sizedwords;
-	}
+		"\n", cp_rb_base, r2, r3);
 
 	kgsl_regread(device, REG_CP_RB_RPTR, &cp_rb_rptr);
 	kgsl_regread(device, REG_CP_RB_WPTR, &cp_rb_wptr);
@@ -601,13 +582,13 @@ static int kgsl_dump_yamato(struct kgsl_device *device)
 		goto error_vfree;
 	}
 
-	read_idx = (int)cp_rb_rptr - NUM_DWORDS_OF_RINGBUFFER_HISTORY;
+	read_idx = (int)cp_rb_rptr - 64;
 	if (read_idx < 0)
 		read_idx += rb_count;
 	write_idx = (int)cp_rb_wptr + 16;
 	if (write_idx > rb_count)
 		write_idx -= rb_count;
-	num_item += NUM_DWORDS_OF_RINGBUFFER_HISTORY+16;
+	num_item += 64+16;
 	if (num_item > rb_count)
 		num_item = rb_count;
 	if (write_idx >= read_idx)
@@ -636,7 +617,7 @@ static int kgsl_dump_yamato(struct kgsl_device *device)
 		}
 	}
 
-	read_idx = (int)cp_rb_rptr - NUM_DWORDS_OF_RINGBUFFER_HISTORY;
+	read_idx = (int)cp_rb_rptr - 64;
 	if (read_idx < 0)
 		read_idx += rb_count;
 	KGSL_LOG_DUMP("RB: addr=%8.8x  window:%4.4x-%4.4x, start:%4.4x\n",
@@ -644,14 +625,13 @@ static int kgsl_dump_yamato(struct kgsl_device *device)
 	kgsl_dump_rb(rb_copy, num_item<<2, read_idx, rb_count);
 
 	if (kgsl_ib_dump_enabled()) {
-		for (read_idx = NUM_DWORDS_OF_RINGBUFFER_HISTORY; read_idx >= 0;
-			--read_idx) {
+		for (read_idx = 64; read_idx >= 0; --read_idx) {
 			uint32_t this_cmd = rb_copy[read_idx];
 			if (this_cmd == pm4_type3_packet(
 				PM4_INDIRECT_BUFFER_PFD, 2)) {
 				uint32_t ib_addr = rb_copy[read_idx+1];
 				uint32_t ib_size = rb_copy[read_idx+2];
-				if (ib_size && cp_ib1_base == ib_addr) {
+				if (cp_ib1_bufsz && cp_ib1_base == ib_addr) {
 					KGSL_LOG_DUMP("IB1: base:%8.8X  "
 						"count:%d\n", ib_addr, ib_size);
 					dump_ib(device, "IB1: ", pt_base,
@@ -661,9 +641,9 @@ static int kgsl_dump_yamato(struct kgsl_device *device)
 			}
 		}
 		for (i = 0; i < ib_list.count; ++i) {
-			uint32_t ib_size = ib_list.sizes[i];
-			uint32_t ib_offset = ib_list.offsets[i];
-			if (ib_size && cp_ib2_base == ib_list.bases[i]) {
+			if (cp_ib2_bufsz && cp_ib2_base == ib_list.bases[i]) {
+				uint32_t ib_size = ib_list.sizes[i];
+				uint32_t ib_offset = ib_list.offsets[i];
 				KGSL_LOG_DUMP("IB2: base:%8.8X  count:%d\n",
 					cp_ib2_base, ib_size);
 				dump_ib(device, "IB2: ", pt_base, ib_offset,

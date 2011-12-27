@@ -54,9 +54,9 @@ obj-$(CONFIG_FB_MSM_TVOUT) += tvenc.o tvfb.o
 
 # Yamato GL driver
 ifeq ($(CONFIG_GPU_MSM_KGSL_ADRENO205),y)
-obj-$(CONFIG_MSM_KGSL) += gpu/kgsl_adreno205/
+obj-$(CONFIG_GPU_MSM_KGSL) += gpu/kgsl_adreno205/
 else
-obj-$(CONFIG_MSM_KGSL) += gpu/kgsl/
+obj-$(CONFIG_GPU_MSM_KGSL) += gpu/kgsl/
 endif
 
 obj-$(CONFIG_MSM_HDMI_COMMON) += hdmi_common.o

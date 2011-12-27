@@ -32,8 +32,6 @@
 
 #include <asm/atomic.h>
 
-//#include <mach/internal_power_rail.h>
-
 #include <linux/ashmem.h>
 
 #include "kgsl.h"
@@ -283,7 +281,6 @@ static int kgsl_suspend(struct platform_device *dev, pm_message_t state)
 			wait_for_completion(&device->suspend_gate);
 			mutex_lock(&device->mutex);
 		}
-		KGSL_DRV_INFO("device->state = %d\n", device->state);
 		/* Don't let the timer wake us during suspended sleep. */
 		del_timer(&device->idle_timer);
 		switch (device->state) {
@@ -1741,7 +1738,6 @@ static void kgsl_device_unregister(void)
 	class_destroy(kgsl_driver.class);
 	cdev_del(&kgsl_driver.cdev);
 	unregister_chrdev_region(kgsl_driver.dev_num, kgsl_driver.num_devs);
-	idr_destroy(&device->context_idr);
 }
 
 static void kgsl_driver_cleanup(void)
@@ -2035,7 +2031,6 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 		result = -ENOMEM;
 		goto done;
 	}
-	idr_init(&device->context_idr);
 done:
 	if (result)
 		kgsl_driver_cleanup();

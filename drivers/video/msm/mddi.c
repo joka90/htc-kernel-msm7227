@@ -403,7 +403,11 @@ void mddi_set_auto_hibernate(struct msm_mddi_client_data *cdata, int on)
 
 static uint16_t mddi_init_registers(struct mddi_info *mddi)
 {
+#ifdef CONFIG_MACH_MARVEL
 	mddi_writel(0x0000, VERSION);
+#else
+	mddi_writel(0x0001, VERSION);
+#endif
 
 	mddi_writel(MDDI_HOST_BYTES_PER_SUBFRAME, BPS);
 	mddi_writel(0x0003, SPM); /* subframes per media */
@@ -630,7 +634,7 @@ int mddi_check_status(struct mddi_info *mddi)
  * jay, Nov 13, 08'
  * extend the single parameter to multiple.
  */
-static void _mddi_remote_write_vals(struct msm_mddi_client_data *cdata, uint8_t *val,
+void mddi_remote_write_vals(struct msm_mddi_client_data *cdata, uint8_t * val,
 			uint32_t reg, unsigned int nr_bytes)
 {
 	struct mddi_info *mddi = container_of(cdata, struct mddi_info,
@@ -675,7 +679,6 @@ static void _mddi_remote_write_vals(struct msm_mddi_client_data *cdata, uint8_t 
 		}
 		if (dma_retry == 0) {
 			PR_DISP_ERR("%s: dma map fail!\n", __func__);
-			mutex_unlock(&mddi->reg_write_lock);
 			return;
 		}
 
@@ -693,14 +696,6 @@ static void _mddi_remote_write_vals(struct msm_mddi_client_data *cdata, uint8_t 
 	mutex_unlock(&mddi->reg_write_lock);
 }
 
-void mddi_remote_write_vals(struct msm_mddi_client_data *cdata, uint8_t * val,
-			uint32_t reg, unsigned int nr_bytes)
-{
-	int sem_owned = overlay_semaphore_lock();
-	_mddi_remote_write_vals(cdata, val, reg, nr_bytes);
-	if(sem_owned == 0) overlay_semaphore_unlock();
-}
-
 void mddi_remote_write(struct msm_mddi_client_data *cdata, uint32_t val,
 			uint32_t reg)
 {
@@ -708,7 +703,7 @@ void mddi_remote_write(struct msm_mddi_client_data *cdata, uint32_t val,
 	mddi_remote_write_vals(cdata, p, reg, 4);
 }
 
-static uint32_t _mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
+uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
 {
 	struct mddi_info *mddi = container_of(cdata, struct mddi_info,
 					      client_data);
@@ -800,17 +795,6 @@ static uint32_t _mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t r
 	mddi->reg_read = NULL;
 	mutex_unlock(&mddi->reg_read_lock);
 	return ri.result;
-}
-
-uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
-{
-	uint32_t rtn_value;
-
-	int sem_owned = overlay_semaphore_lock();
-	rtn_value = _mddi_remote_read(cdata, reg);
-	if(sem_owned == 0) overlay_semaphore_unlock();
-
-	return rtn_value;
 }
 
 /*FIXME: workaround for Novatek*/
@@ -965,7 +949,7 @@ int mddi_reg_debugfs_init(struct mddi_info *mddi)
         if (IS_ERR(mddi_reg_dent))
                 return PTR_ERR(mddi_reg_dent);
 
-        debugfs_create_file("reg", 0600, mddi_reg_dent, mddi,
+        debugfs_create_file("reg", 0666, mddi_reg_dent, mddi,
                 &mddi_reg_debugfs_fops[0]);
 
         return 0;

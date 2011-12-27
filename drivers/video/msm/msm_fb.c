@@ -84,7 +84,6 @@ struct mdp_device *mdp;
 #ifdef CONFIG_FB_MSM_OVERLAY
 static atomic_t mdpclk_on = ATOMIC_INIT(1);
 #endif
-DECLARE_MUTEX(ov_semaphore);
 
 struct msmfb_info {
 	struct fb_info *fb;
@@ -171,37 +170,6 @@ static int msmfb_release(struct fb_info *info, int user)
 	return 0;
 }
 
-int overlay_semaphore_lock(void)
-{
-	static struct task_struct last_owner_task = {0};
-	static int fail_counter = 0;
-	int err = down_timeout(&ov_semaphore, msecs_to_jiffies(1000));
-
-	if( err==0 ){
-		// Got the ownership for this semaphore, record who own it...
-		last_owner_task.pid = current->pid;
-		last_owner_task.tgid = current->tgid;
-		strncpy( last_owner_task.comm, current->comm, (TASK_COMM_LEN-1) );
-		// Reset the fail counter...
-		fail_counter = 0;
-	}else{
-		// Fail to get the ownership for this semaphore...
-		if( (fail_counter%10)==0 ){
-			// Show out the debug message every 10 times fail...
-			PR_DISP_WARN("Semaphore own by [%s](%d, %d), [%s](%d, %d) want to own it(err=%d)...\n", last_owner_task.comm, last_owner_task.pid, last_owner_task.tgid, current->comm, current->pid, current->tgid, err);
-			dump_stack();
-		}
-		fail_counter++;
-	}
-
-	return err;
-}
-
-void overlay_semaphore_unlock(void)
-{
-	up(&ov_semaphore);
-}
-
 /* Called from dma interrupt handler, must not sleep */
 static void msmfb_handle_dma_interrupt(struct msmfb_callback *callback)
 {
@@ -214,7 +182,6 @@ static void msmfb_handle_dma_interrupt(struct msmfb_callback *callback)
 	static int64_t frame_count;
 	static ktime_t last_sec;
 #endif
-	overlay_semaphore_unlock();
 
 	spin_lock_irqsave(&msmfb->update_lock, irq_flags);
 	msmfb->frame_done = msmfb->frame_requested;
@@ -259,13 +226,11 @@ static int msmfb_start_dma(struct msmfb_info *msmfb)
 	}
 	if (msmfb->frame_done == msmfb->frame_requested) {
 		spin_unlock_irqrestore(&msmfb->update_lock, irq_flags);
-		overlay_semaphore_unlock();
 		return -1;
 	}
 	if (msmfb->sleeping == SLEEPING) {
 		DLOG(SUSPEND_RESUME, "tried to start dma while asleep\n");
 		spin_unlock_irqrestore(&msmfb->update_lock, irq_flags);
-		overlay_semaphore_unlock();
 		return -1;
 	}
 	x = msmfb->update_info.left;
@@ -297,7 +262,6 @@ error:
 	/* some clients need to clear their vsync interrupt */
 	if (panel->clear_vsync)
 		panel->clear_vsync(panel);
-	overlay_semaphore_unlock();
 	wake_up(&msmfb->frame_wq);
 	return 0;
 }
@@ -373,8 +337,8 @@ restart:
 
 	sleeping = msmfb->sleeping;
 	/* on a full update, if the last frame has not completed, wait for it */
-	if (pan_display && (msmfb->frame_requested != msmfb->frame_done ||
-			    sleeping == UPDATING)) {
+	if ((pan_display && msmfb->frame_requested != msmfb->frame_done) ||
+			    sleeping == UPDATING) {
 		int ret;
 		spin_unlock_irqrestore(&msmfb->update_lock, irq_flags);
 		/* Shorten delay time when apply vsync recover mechanism*/
@@ -459,7 +423,6 @@ restart:
 
 	/* if the panel is all the way on wait for vsync, otherwise sleep
 	 * for 16 ms (long enough for the dma to panel) and then begin dma */
-	overlay_semaphore_lock();
 	msmfb->vsync_request_time = ktime_get();
 	if (panel->request_vsync && (sleeping == AWAKE)) {
 		wake_lock_timeout(&msmfb->idle_lock, HZ/4);
@@ -1026,7 +989,12 @@ static int msmfb_ioctl(struct fb_info *p, unsigned int cmd, unsigned long arg)
 		break;
 #ifdef CONFIG_FB_MSM_OVERLAY
 	case MSMFB_OVERLAY_GET:
-		ret = msmfb_overlay_get(p, argp);
+		if(!atomic_read(&mdpclk_on)) {
+			PR_DISP_WARN("MSMFB_OVERLAY_GET during suspend\n");
+			ret = -EINVAL;
+		} else
+			ret = msmfb_overlay_get(p, argp);
+		PR_DISP_INFO("MSMFB_OVERLAY_GET ret=%d\n", ret);
 		break;
 	case MSMFB_OVERLAY_SET:
 		if(!atomic_read(&mdpclk_on)) {
@@ -1138,7 +1106,11 @@ static struct file_operations debug_fops = {
 };
 #endif
 
+#if defined(CONFIG_MACH_BAHAMAS) || defined(CONFIG_MACH_BUZZ) || defined(CONFIG_MACH_HERO)
+#define BITS_PER_PIXEL_DEF 16
+#else
 #define BITS_PER_PIXEL_DEF 32
+#endif
 
 static void setup_fb_info(struct msmfb_info *msmfb)
 {
@@ -1272,7 +1244,6 @@ static int msmfb_probe(struct platform_device *pdev)
 	msmfb->xres = panel->fb_data->xres;
 	msmfb->yres = panel->fb_data->yres;
 	msmfb->overrides = panel->fb_data->overrides;
-	setup_fb_info(msmfb);
 	ret = setup_fbmem(msmfb, pdev);
 	if (ret)
 		goto error_setup_fbmem;
@@ -1281,6 +1252,8 @@ static int msmfb_probe(struct platform_device *pdev)
 	/* Jay, 8/1/09' */
 	msmfb_set_var(msmfb->fb->screen_base, 0);
 #endif
+
+	setup_fb_info(msmfb);
 
 	spin_lock_init(&msmfb->update_lock);
 	mutex_init(&msmfb->panel_init_lock);
@@ -1340,6 +1313,12 @@ static int msmfb_probe(struct platform_device *pdev)
 	msmfb->fake_vsync.function = msmfb_fake_vsync;
 
 	ret = register_framebuffer(fb);
+
+	if(fb->node == 0)
+		mdp->fb0 = msmfb->fb;
+	else
+		mdp->fb1 = msmfb->fb;
+
 	if (ret)
 		goto error_register_framebuffer;
 

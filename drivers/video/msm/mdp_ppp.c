@@ -318,8 +318,6 @@ static int blit_scale(struct mdp_info *mdp, struct mdp_blit_req *req,
 	struct mdp_rect dst_rect;
 
 	memcpy(&dst_rect, &req->dst_rect, sizeof(dst_rect));
-	if (dst_rect.h+1 <= 480)
-		dst_rect.h +=1;
 	if (req->flags & MDP_ROT_90) {
 		dst_rect.w = req->dst_rect.h;
 		dst_rect.h = req->dst_rect.w;
