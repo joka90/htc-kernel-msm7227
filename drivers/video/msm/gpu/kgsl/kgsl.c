@@ -41,7 +41,7 @@
 #include "kgsl_postmortem.h"
 
 #include "kgsl_log.h"
-#include "kgsl_drm.h"
+#include <drm/kgsl_drm.h>
 #include "kgsl_cffdump.h"
 
 
