@@ -297,32 +297,32 @@ static void mdp_do_dma_timer(unsigned long data)
 	spin_lock_irqsave(&mdp->lock, irq_flags);
 	// Check that we still need this timer or not?
 	if (mdp_dma_timer_enable) {
-	status = mdp_readl(mdp, MDP_INTR_STATUS);
-	mdp_writel(mdp, mdp_irq_mask, MDP_INTR_CLEAR);
+		status = mdp_readl(mdp, MDP_INTR_STATUS);
+		mdp_writel(mdp, mdp_irq_mask, MDP_INTR_CLEAR);
 
-	PR_DISP_WARN("mdp_do_dma_timer: status=0x%x mdp_irq_mask=0x%x\n", status, mdp_irq_mask);
+		PR_DISP_WARN("mdp_do_dma_timer: status=0x%x mdp_irq_mask=0x%x\n", status, mdp_irq_mask);
 
-	for (i = 0; i < MSM_MDP_NUM_INTERFACES; ++i) {
-		struct mdp_out_interface *out_if = &mdp->out_if[i];
-		if (mdp_irq_mask & out_if->dma_mask) {
-			if (out_if->dma_cb) {
-				out_if->dma_cb->func(out_if->dma_cb);
-				out_if->dma_cb = NULL;
+		for (i = 0; i < MSM_MDP_NUM_INTERFACES; ++i) {
+			struct mdp_out_interface *out_if = &mdp->out_if[i];
+			if (mdp_irq_mask & out_if->dma_mask) {
+				if (out_if->dma_cb) {
+					out_if->dma_cb->func(out_if->dma_cb);
+					out_if->dma_cb = NULL;
+				}
+				wake_up(&out_if->dma_waitqueue);
 			}
-			wake_up(&out_if->dma_waitqueue);
+			if (mdp_irq_mask & out_if->irq_mask) {
+				out_if->irq_cb->func(out_if->irq_cb);
+				out_if->irq_cb = NULL;
+			}
 		}
-		if (mdp_irq_mask & out_if->irq_mask) {
-			out_if->irq_cb->func(out_if->irq_cb);
-			out_if->irq_cb = NULL;
-		}
-	}
 
 #ifndef CONFIG_MSM_MDP40
-	if (mdp_irq_mask & DL0_ROI_DONE)
-		mdp_ppp_handle_isr(mdp, DL0_ROI_DONE);
+		if (mdp_irq_mask & DL0_ROI_DONE)
+			mdp_ppp_handle_isr(mdp, DL0_ROI_DONE);
 #endif //CONFIG_MSM_MDP40
 
-	locked_disable_mdp_irq(mdp, mdp_irq_mask);
+		locked_disable_mdp_irq(mdp, mdp_irq_mask);
 	}
 
 	spin_unlock_irqrestore(&mdp->lock, irq_flags);
@@ -524,12 +524,10 @@ static void mdp_dma_to_mddi(void *priv, uint32_t addr, uint32_t stride,
 	} else if (mdp->mdp_dev.color_format == MSM_MDP_OUT_IF_FMT_RGB666) {
 		dma2_cfg |= DMA_DSTC0G_6BITS | DMA_DSTC1B_6BITS | DMA_DSTC2R_6BITS;
 		video_packet_parameter = MDDI_VDO_PACKET_DESC_RGB666;
-#if !defined(CONFIG_ARCH_MSM7X00A) && !defined(CONFIG_ARCH_MSM7225)
 	} else {
 		dma2_cfg |= DMA_IBUF_FORMAT_XRGB8888;
 		dma2_cfg |= DMA_DSTC0G_8BITS | DMA_DSTC1B_8BITS | DMA_DSTC2R_8BITS;
 		video_packet_parameter = MDDI_VDO_PACKET_DESC_RGB888;
-#endif
 	}
 
 
@@ -603,7 +601,7 @@ void mdp_dma(struct mdp_device *mdp_dev, uint32_t addr, uint32_t stride,
 	if (locked_enable_mdp_irq(mdp, out_if->dma_mask)) {
 		mdp_dma_user_requested++;
 		if (mdp_dma_user_requested > 2) {
-			PR_DISP_ERR("%s: really busy? start dma timer\n", __func__);
+                        PR_DISP_ERR("%s: really busy? start dma timer\n", __func__);
 			/* something wrong in dma, workaround it */
 			mdp_dma_timer_enable = 1;
 			mdp_dma_user_requested = 0;
@@ -1230,7 +1228,6 @@ int mdp_probe(struct platform_device *pdev)
 
 	mdp->clk = clk_get(&pdev->dev, "mdp_clk");
 	if (IS_ERR(mdp->clk)) {
-		kfree(mdp);
 		PR_DISP_INFO("mdp: failed to get mdp clk");
 		ret = PTR_ERR(mdp->clk);
 		goto error_get_mdp_clk;
