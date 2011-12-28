@@ -189,31 +189,6 @@ static uint32_t wifi_off_gpio_table[] = {
 static struct vreg *vreg_wifi_osc;	/* WIFI 32khz oscilator */
 static int legend_wifi_cd;		/* WIFI virtual 'card detect' status */
 
-static struct sdio_embedded_func wifi_func[2] = {
-	{.f_class	= SDIO_CLASS_WLAN,
-	.f_maxblksize	= 512},
-	{.f_class       = SDIO_CLASS_WLAN,
-	.f_maxblksize   = 512},
-};
-
-static struct embedded_sdio_data legend_wifi_emb_data = {
-	.cis	= {
-		.vendor		= 0x104c,
-		.device		= 0x9066,
-		.blksize	= 512,
-		/* .max_dtr	= 24000000, */
-		.max_dtr	= 25000000,
-	},
-	.cccr	= {
-		.multi_block	= 0,
-		.low_speed	= 0,
-		.wide_bus	= 1,
-		.high_power	= 0,
-		.high_speed	= 0,
-	},
-	.funcs	= wifi_func,
-	.num_funcs = 2,
-};
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
@@ -233,17 +208,6 @@ static unsigned int legend_wifi_status(struct device *dev)
 {
 	return legend_wifi_cd;
 }
-
-static struct mmc_platform_data legend_wifi_data = {
-	.ocr_mask		= MMC_VDD_28_29,
-	.status			= legend_wifi_status,
-	.register_status_notify	= legend_wifi_status_register,
-	.embedded_sdio		= &legend_wifi_emb_data,
-#ifdef CONFIG_MMC_SUPPORT_EXTERNEL_DRIVER
-	.use_ext_sdiodrv	= 1,
-	.ext_sdiodrv_name	= "TIWLAN_SDIO",
-#endif
-};
 
 int legend_wifi_set_carddetect(int val)
 {
@@ -346,6 +310,30 @@ int legend_wifi_power(int on)
 	return 0;
 }
 EXPORT_SYMBOL(legend_wifi_power);
+
+/* Wifi chip power control */
+static uint32_t wifi_setup_power(struct device *dv, unsigned int vdd)
+{
+	int ret;	
+	if(vdd)
+		ret = legend_wifi_power(1);
+	else
+		ret = legend_wifi_power(0);
+	return ret;
+}
+
+static struct mmc_platform_data legend_wifi_data = {
+	.ocr_mask		= MMC_VDD_28_29,
+	.status			= legend_wifi_status,
+	.register_status_notify	= legend_wifi_status_register,
+	.translate_vdd = wifi_setup_power,
+	.mmc_bus_width = MMC_CAP_4_BIT_DATA,
+/*	.sdiowakeup_irq = MSM_GPIO_TO_INT(118),*/
+	.msmsdcc_fmin = 144000,
+	.msmsdcc_fmax = 50000000,
+	.nonremovable = 1,
+
+};
 
 /* Eenable VREG_MMC pin to turn on fastclock oscillator : colin */
 int legend_bt_fastclock_power(int on)
