@@ -1,0 +1,11 @@
+export CM_PATH=/home/johan/android/system
+export CM_DEVICE=$CM_PATH/device/semc/mogami-common
+export TI12XX_ROOT=$CM_PATH/hardware/ti/wl12xx
+export GIT_TREE=$CM_PATH/hardware/ti/wl12xx/wl12xx
+export GIT_COMPAT_TREE=$CM_PATH/hardware/ti/wl12xx/compat
+export DEVICE_PATH=$CM_PATH/device/semc/mogami-common/modules
+export KERNEL=$CM_PATH/kernel
+export CROSS_COMPILER=$CM_PATH/prebuilt/linux-x86/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
+
+make ARCH=arm CROSS_COMPILE=$CROSS_COMPILER -j4
+

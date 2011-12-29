@@ -1,0 +1,24 @@
+export CM_PATH=/home/johan/android/system
+export CM_DEVICE=$CM_PATH/device/htc/legend
+export TI12XX_ROOT=$CM_PATH/hardware/ti/wl12xx
+export GIT_TREE=$CM_PATH/hardware/ti/wl12xx/wl12xx
+export GIT_COMPAT_TREE=$CM_PATH/hardware/ti/wl12xx/compat
+export DEVICE_PATH=$CM_PATH/device/htc/legend/modules
+export KERNEL=$CM_PATH/../kernel/htc-kernel-msm7227-alguze
+export CROSS_COMPILER=$CM_PATH/prebuilt/linux-x86/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
+
+
+
+cd $TI12XX_ROOT/compat-wireless
+make KLIB=$KERNEL KLIB_BUILD=$KERNEL ARCH=arm CROSS_COMPILE=$CROSS_COMPILER -j4
+
+cp $CM_PATH/hardware/ti/wl12xx/compat-wireless/compat/compat.ko $CM_DEVICE/wl12xx/modules
+cp $CM_PATH/hardware/ti/wl12xx/compat-wireless/compat/compat_firmware_class.ko $CM_DEVICE/wl12xx/modules
+cp $CM_PATH/hardware/ti/wl12xx/compat-wireless/drivers/net/wireless/wl12xx/wl12xx.ko $CM_DEVICE/wl12xx/modules
+cp $CM_PATH/hardware/ti/wl12xx/compat-wireless/drivers/net/wireless/wl12xx/wl12xx_sdio.ko $CM_DEVICE/wl12xx/modules
+cp $CM_PATH/hardware/ti/wl12xx/compat-wireless/net/mac80211/mac80211.ko $CM_DEVICE/wl12xx/modules
+cp $CM_PATH/hardware/ti/wl12xx/compat-wireless/net/wireless/cfg80211.ko $CM_DEVICE/wl12xx/modules
+
+#cp $CM_PATH/hardware/ti/wl12xx/ti-utils/firmware/wl12xx* $CM_DEVICE/wl12xx/firmware
+
+
